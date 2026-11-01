@@ -14,6 +14,7 @@ these documents are the contract it is expected to keep.
 | [07-auth-emulation.md](07-auth-emulation.md) | Cloning the login and sign-up journey so a mirrored app can be entered offline |
 | [08-endpoint-discovery.md](08-endpoint-discovery.md) | Finding every endpoint a site uses, including ones the crawler never reached |
 | [09-agent-build-guide.md](09-agent-build-guide.md) | **Build guide for an AI agent**: invariants, build order, module contracts, verification |
+| [10-troubleshooting.md](10-troubleshooting.md) | Install failures (including the Windows `node-gyp` trap), native modules, preview and crawl problems |
 | [api/README.md](api/README.md) | Index of all 25 endpoints, one document each |
 
 ## Reading order

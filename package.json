@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "setup": "npm install --ignore-scripts --no-audit --no-fund && npx playwright install chromium chromium-headless-shell",
     "postinstall": "npx playwright install chromium chromium-headless-shell || true",
     "build": "npx playwright install chromium chromium-headless-shell && next build || next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",

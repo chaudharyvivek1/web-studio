@@ -38,11 +38,21 @@ break it*.
 | system `wget` | the fast mirror strategy; optional but strongly preferred |
 | system `zip` | much faster export than the JS fallback |
 
-**Windows, no C++ toolchain:** `better-sqlite3` ships prebuilt binaries
-(`prebuilds/win32-x64.node`) but also ships a `binding.gyp` with no install
-script, so npm runs `node-gyp rebuild` and fails without MSVC. Install with
-`npm install --ignore-scripts`, then run `npx playwright install chromium
-chromium-headless-shell` manually. Do not "fix" this by downgrading Node.
+**Always install with `npm run setup`**, never a bare `npm install`.
+
+`better-sqlite3@13` ships prebuilt binaries (`prebuilds/win32-x64.node`) but also
+ships a `binding.gyp` with no declared install script, so npm automatically runs
+`node-gyp rebuild` — which needs MSVC on Windows and fails everywhere it is
+absent. `npm run setup` expands to
+`npm install --ignore-scripts && npx playwright install chromium
+chromium-headless-shell`, skipping the pointless compile and fetching the
+browsers explicitly. Skipping install scripts is safe here because the only
+packages that declare them (`sharp`, `unrs-resolver`) ship their binaries as
+optional platform packages.
+
+Do not "fix" a failed install by downgrading Node: `better-sqlite3@13` requires
+Node 22 or newer and segfaults on 20. See
+[10-troubleshooting.md](10-troubleshooting.md).
 
 ---
 
@@ -250,7 +260,7 @@ listener, and drive it with fake forms. Assert:
 | symptom | cause | fix |
 |---|---|---|
 | `'next' is not recognized` | install aborted earlier | clean `node_modules`, reinstall |
-| `node-gyp` / MSVC error on Windows | npm's fallback build for `better-sqlite3` | `npm install --ignore-scripts` |
+| `node-gyp` / MSVC error on Windows | npm's fallback build for `better-sqlite3` | `npm run setup` (or `npm install --ignore-scripts`) |
 | segfault at runtime on SQLite | Node 20 with `better-sqlite3@13` | use Node 22+ |
 | preview shows a white screen | SPA asset URLs hit your origin | check `middleware.ts` referer matching |
 | missing chunk returns HTML | SPA fallback ordered before static search | move the fallback last |

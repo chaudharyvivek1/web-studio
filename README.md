@@ -52,12 +52,18 @@ scripts for macOS, Linux and Windows.
 ## Quick start
 
 ```bash
-npm install
-npx playwright install chromium
+npm run setup     # install dependencies + Chromium, no C++ toolchain needed
 npm run dev
 ```
 
 Open <http://localhost:3000>, paste a URL, and press capture.
+
+> **Use `npm run setup`, not a bare `npm install`.** `better-sqlite3@13` ships
+> prebuilt binaries but also ships a `binding.gyp` with no install script, so
+> npm automatically tries to compile it with `node-gyp` — which fails on any
+> machine without Visual Studio's C++ workload, most visibly on Windows. The
+> `setup` script passes `--ignore-scripts` to skip that pointless compile.
+> Full explanation: [docs/10-troubleshooting.md](docs/10-troubleshooting.md).
 
 Production:
 
@@ -103,6 +109,7 @@ module `lib/resolveDir.ts`. The full specification is in [`docs/`](docs/).
 - [docs/07-auth-emulation.md](docs/07-auth-emulation.md) — cloning the login/sign-up journey
 - [docs/08-endpoint-discovery.md](docs/08-endpoint-discovery.md) — finding every endpoint a site uses
 - [docs/09-agent-build-guide.md](docs/09-agent-build-guide.md) — **build guide for an AI agent**
+- [docs/10-troubleshooting.md](docs/10-troubleshooting.md) — install failures, native modules, preview and crawl problems
 - [docs/api/](docs/api/) — one document per endpoint, 25 routes plus middleware
 
 ## Before you deploy this publicly
