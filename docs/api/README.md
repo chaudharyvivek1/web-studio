@@ -1,6 +1,6 @@
 # API reference
 
-WebStudio exposes **26 HTTP endpoints** plus one edge middleware. Every route is
+WebStudio exposes **27 HTTP endpoints** plus one edge middleware. Every route is
 a Next.js App Router handler under `app/api/`, so a route's file path *is* its
 URL.
 
@@ -50,6 +50,7 @@ and notes for anyone reimplementing it.
 | # | Method | Path | Purpose |
 |---|---|---|---|
 | 18 | `POST` | `/api/auth/login` | Interactive manual login (4 actions) |
+| 28 | `GET`/`POST`/`DELETE` | `/api/auth/access` | Access-token login, state check, sign-out |
 | 19 | `GET`/`POST` | `/api/auth/session` | Mock NextAuth session |
 | 20 | `GET`/`POST` | `/api/auth/[...nextauth]` | Mock NextAuth catch-all |
 | 21 | `GET`/`POST` | `/api/auth/profiles` | List / create stored auth profiles |

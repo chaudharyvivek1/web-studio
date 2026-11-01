@@ -7,9 +7,14 @@ import { activeJobs } from '@/lib/jobStore';
  * Get the base directory for downloads, handling read-only environments like Vercel.
  */
 export function getBaseDownloadDir(id?: string): string {
-  const baseDir = (process.env.VERCEL || process.env.NOW_BUILDER || process.env.NODE_ENV === 'production')
-    ? path.join(os.tmpdir(), 'downloads')
-    : path.join(process.cwd(), 'tmp', 'downloads');
+  // WEBSTUDIO_DOWNLOAD_DIR wins so a deployment can mount a persistent volume.
+  // Falling back to $TMPDIR on serverless is deliberate: those files are
+  // ephemeral there and the app must not pretend otherwise.
+  const baseDir = process.env.WEBSTUDIO_DOWNLOAD_DIR
+    ? path.resolve(process.env.WEBSTUDIO_DOWNLOAD_DIR)
+    : (process.env.VERCEL || process.env.NOW_BUILDER || process.env.NODE_ENV === 'production')
+      ? path.join(os.tmpdir(), 'downloads')
+      : path.join(process.cwd(), 'tmp', 'downloads');
   return id ? path.join(baseDir, id) : baseDir;
 }
 

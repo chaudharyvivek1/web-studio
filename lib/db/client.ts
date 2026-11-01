@@ -10,9 +10,12 @@ import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
 import { SCHEMA_SQL, JobRecord, PageRecord, AssetRecord, ErrorRecord, AuthProfileRecord, JobStatus } from './schema';
+import { encryptSecret, decryptSecret } from '../security/crypto';
 
-/** Database file location */
-const DB_DIR = path.join(process.cwd(), 'data');
+/** Database file location. WEBSTUDIO_DATA_DIR points this at a mounted volume. */
+const DB_DIR = process.env.WEBSTUDIO_DATA_DIR
+  ? path.resolve(process.env.WEBSTUDIO_DATA_DIR)
+  : path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'webstudio.db');
 
 /** Singleton database instance */
@@ -356,7 +359,8 @@ export function createAuthProfile(profile: {
     profile.name,
     profile.domain.toLowerCase(),
     profile.auth_type ?? 'manual_session',
-    profile.storage_state,
+    // Cookies and tokens are sealed at rest when a secret is configured.
+    encryptSecret(profile.storage_state),
     now,
     now
   );
@@ -370,7 +374,8 @@ export function createAuthProfile(profile: {
 export function getAuthProfile(id: string): AuthProfileRecord | null {
   const db = getDB();
   const row = db.prepare('SELECT * FROM auth_profiles WHERE id = ?').get(id) as AuthProfileRecord | undefined;
-  return row ?? null;
+  if (!row) return null;
+  return { ...row, storage_state: decryptSecret(row.storage_state) ?? '' };
 }
 
 /**
@@ -378,11 +383,18 @@ export function getAuthProfile(id: string): AuthProfileRecord | null {
  */
 export function listAuthProfiles(domain?: string): AuthProfileRecord[] {
   const db = getDB();
-  if (domain) {
-    const cleanDomain = domain.toLowerCase().replace('www.', '');
-    return db.prepare('SELECT * FROM auth_profiles WHERE domain LIKE ? ORDER BY created_at DESC').all(`%${cleanDomain}%`) as AuthProfileRecord[];
-  }
-  return db.prepare('SELECT * FROM auth_profiles ORDER BY created_at DESC').all() as AuthProfileRecord[];
+  const rows = domain
+    ? (db
+        .prepare('SELECT * FROM auth_profiles WHERE domain LIKE ? ORDER BY created_at DESC')
+        .all(`%${domain.toLowerCase().replace('www.', '')}%`) as AuthProfileRecord[])
+    : (db
+        .prepare('SELECT * FROM auth_profiles ORDER BY created_at DESC')
+        .all() as AuthProfileRecord[]);
+
+  return rows.map((row) => ({
+    ...row,
+    storage_state: decryptSecret(row.storage_state) ?? '',
+  }));
 }
 
 /**
