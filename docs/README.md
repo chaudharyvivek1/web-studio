@@ -15,7 +15,8 @@ these documents are the contract it is expected to keep.
 | [08-endpoint-discovery.md](08-endpoint-discovery.md) | Finding every endpoint a site uses, including ones the crawler never reached |
 | [09-agent-build-guide.md](09-agent-build-guide.md) | **Build guide for an AI agent**: invariants, build order, module contracts, verification |
 | [10-troubleshooting.md](10-troubleshooting.md) | Install failures (including the Windows `node-gyp` trap), native modules, preview and crawl problems |
-| [api/README.md](api/README.md) | Index of all 25 endpoints, one document each |
+| [11-live-proxy.md](11-live-proxy.md) | Snapshot vs Live: rendering the real site through the proxy, and signing in to it |
+| [api/README.md](api/README.md) | Index of all 26 endpoints, one document each |
 
 ## Reading order
 

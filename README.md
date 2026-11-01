@@ -28,7 +28,9 @@ crawl log, and lets you click through:
 - **Logs** — the crawl log, tailed live or downloaded whole
 - **Auth Flow** — the detected login/sign-up forms, their fields, and the session contract
 - **Endpoints** — every HTTP endpoint the site uses, including ones the crawler never reached
-- **Preview** — the mirrored site in a desktop, laptop, tablet or phone frame
+- **Preview** — the mirrored site in a desktop, laptop, tablet or phone frame, with a
+  **Snapshot / Live** switch: Snapshot serves the captured files, Live proxies the real
+  site so forms and sign-ins actually work
 
 If the mirrored site has a login, the offline copy **works**: a visitor can
 create an account or sign in locally and be taken through into the authenticated
@@ -115,6 +117,7 @@ module `lib/resolveDir.ts`. The full specification is in [`docs/`](docs/).
 - [docs/08-endpoint-discovery.md](docs/08-endpoint-discovery.md) — finding every endpoint a site uses
 - [docs/09-agent-build-guide.md](docs/09-agent-build-guide.md) — **build guide for an AI agent**
 - [docs/10-troubleshooting.md](docs/10-troubleshooting.md) — install failures, native modules, preview and crawl problems
+- [docs/11-live-proxy.md](docs/11-live-proxy.md) — rendering the real site through the live proxy
 - [docs/api/](docs/api/) — one document per endpoint, 25 routes plus middleware
 
 ## Before you deploy this publicly

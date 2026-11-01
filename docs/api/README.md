@@ -1,6 +1,6 @@
 # API reference
 
-WebStudio exposes **25 HTTP endpoints** plus one edge middleware. Every route is
+WebStudio exposes **26 HTTP endpoints** plus one edge middleware. Every route is
 a Next.js App Router handler under `app/api/`, so a route's file path *is* its
 URL.
 
@@ -31,6 +31,7 @@ and notes for anyone reimplementing it.
 | 15 | `POST` | `/api/mirror/[id]/auth-login` | Browser login + authenticated harvest |
 | 25 | `GET` | `/api/mirror/[id]/auth-flow` | Detected login/sign-up surface + session contract |
 | 26 | `GET` | `/api/mirror/[id]/endpoints` | Every endpoint the site uses, including unreached ones |
+| 27 | *any* | `/api/mirror/[id]/live/[[...path]]` | Live reverse proxy of the real site — forms and login work |
 
 ## Capture entry points
 

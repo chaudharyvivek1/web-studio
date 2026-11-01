@@ -178,6 +178,30 @@ delete that file by hand and reload.
 modules and font loading. The preview route has an explicit `MIME_OVERRIDES`
 table for exactly this; add the extension there rather than patching callers.
 
+### The preview is blank or half-rendered
+
+You are looking at **Snapshot** mode — the captured files. A JavaScript-heavy
+site mid-crawl, or a page the crawler never reached, renders as an empty shell.
+That is the honest state of a partial capture, not a failure.
+
+Switch the preview panel to **Live** to proxy the real site instead. If Live is
+also blank, the target is unreachable from the server, blocking the request, or
+exceeded the 25 MB cap — the response will say which.
+
+### Live mode loads the page but clicking a link goes to a localhost 404
+
+An SPA changed the URL with `history.pushState`, which is not rewritten. Reload
+the page from the live root, or use Snapshot mode for offline-accurate
+navigation. See [11-live-proxy.md](11-live-proxy.md).
+
+### Live mode: I sign in but I am not signed in on the next page
+
+Cookies. `Set-Cookie` is rewritten to drop `Domain` and `Secure` and to scope
+`Path` to the proxy prefix — if the site sets its session on a *different*
+subdomain, or via JavaScript with `document.cookie` on an explicit domain, the
+rewrite will not catch it. Check the browser's cookie list for the localhost
+origin.
+
 ### The preview shows a spinner that never resolves
 
 That is the live holding page served while `status === 'downloading'`. If the job

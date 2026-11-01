@@ -40,6 +40,11 @@ retained. Both are present in `LICENSE`.
   login and sign-up forms now work offline: a visitor registers or signs in
   against a browser-local account store, a session is established under the
   names the target app expects, and they are taken into the authenticated area.
+- **Live proxy** — `app/api/mirror/[id]/live/[[...path]]/route.ts` and the
+  **Snapshot / Live** switch in the preview panel. Snapshot serves captured
+  files; Live reverse-proxies the real site on demand, rewriting HTML, CSS,
+  redirects and `Set-Cookie` headers so the page renders and its forms — including
+  the login form — submit to the real server.
 - **Endpoint discovery** — `lib/analysis/endpoints.ts`,
   `GET /api/mirror/[id]/endpoints`, and the **Endpoints** studio tab. Merges the
   crawl manifest, the engine's API catalogue and string literals from captured
@@ -51,7 +56,7 @@ retained. Both are present in `LICENSE`.
 - `docs/` — a full specification: architecture, crawl lifecycle, data model,
   security model including known gaps, a recreation guide, a structure map, an
   auth-emulation spec, an endpoint-discovery spec, a build guide written for an
-  AI agent, and one document per API endpoint (25 routes plus the edge
+  AI agent, and one document per API endpoint (26 routes plus the edge
   middleware).
 - `LICENSE` — the MIT text, retaining the upstream copyright line.
 - `NOTICE` — this file.

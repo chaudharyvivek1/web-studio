@@ -37,6 +37,7 @@ import {
   Image as ImageIcon,
   ChevronRight,
   ChevronDown,
+  Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProjectDashboardCard } from './ProjectDashboardCard';
@@ -91,6 +92,8 @@ export function PreviewTab({
   isDownloadingZip = false,
 }: PreviewTabProps) {
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
+  // 'snapshot' serves the captured files; 'live' reverse-proxies the real site
+  const [renderMode, setRenderMode] = useState<'snapshot' | 'live'>('snapshot');
   const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'pages' | 'assets' | 'files'>('dashboard');
   const [viewport, setViewport] = useState<'desktop' | 'laptop' | 'tablet' | 'mobile'>('desktop');
   const [pageFilter, setPageFilter] = useState<'all' | 'dashboards' | 'apps' | 'auth'>('all');
@@ -120,10 +123,15 @@ export function PreviewTab({
   }, [htmlPages, previewPath, onChangePreviewPath]);
 
   const cleanPath = previewPath.replace(/^\//, '') || 'index.html';
-  const previewUrl = `/api/mirror/${id}/preview/${cleanPath}`;
   const displayCleanPath = cleanPath.startsWith(hostname + '/')
     ? cleanPath.slice(hostname.length + 1)
     : cleanPath;
+  // Live mode proxies the real site from its root; snapshot serves captured files.
+  const livePath = displayCleanPath === 'index.html' ? '' : displayCleanPath;
+  const previewUrl =
+    renderMode === 'live'
+      ? `/api/mirror/${id}/live/${livePath}`
+      : `/api/mirror/${id}/preview/${cleanPath}`;
   const displayUrl = `https://${hostname}/${displayCleanPath === 'index.html' ? '' : displayCleanPath}`;
 
   // Smooth reload helper that doesn't flash or unmount the iframe
@@ -517,6 +525,44 @@ export function PreviewTab({
                 <span>Code</span>
               </button>
             </div>
+
+            {/* Snapshot vs Live: serve captured files, or proxy the real site */}
+            <div className="flex items-center bg-background border border-border rounded-md p-0.5 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setRenderMode('snapshot')}
+                title="View the files captured by the crawler"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer font-medium ${renderMode === 'snapshot'
+                    ? 'bg-foreground text-background font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Snapshot</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenderMode('live')}
+                title="Load the real site through WebStudio — forms and logins work"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer font-medium ${renderMode === 'live'
+                    ? 'bg-emerald-500 text-white font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>Live</span>
+              </button>
+            </div>
+
+            {renderMode === 'live' && (
+              <span
+                className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                title="You are viewing the real site through WebStudio's proxy. Forms, sign-in and sign-up work normally."
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                real site
+              </span>
+            )}
 
             {/* Viewport Toggles (desktop and tablet only) */}
             {viewMode === 'preview' && (
