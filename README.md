@@ -26,7 +26,13 @@ crawl log, and lets you click through:
 - **Health** — a 0–100 fidelity score
 - **Network** — a waterfall rebuilt from the manifest
 - **Logs** — the crawl log, tailed live or downloaded whole
+- **Auth Flow** — the detected login/sign-up forms, their fields, and the session contract
+- **Endpoints** — every HTTP endpoint the site uses, including ones the crawler never reached
 - **Preview** — the mirrored site in a desktop, laptop, tablet or phone frame
+
+If the mirrored site has a login, the offline copy **works**: a visitor can
+create an account or sign in locally and be taken through into the authenticated
+area. See [docs/07-auth-emulation.md](docs/07-auth-emulation.md).
 
 When you are done, one click produces a ZIP containing the mirror plus a
 zero-dependency Node server, a zero-dependency Python server, and launcher
@@ -60,9 +66,9 @@ npm run build
 npm start
 ```
 
-The wget strategy uses the system `wget` on `PATH`. If the host has none —
-mainly small serverless containers — an optional bundled binary can be dropped
-at `bin/wget`. See [`bin/README.md`](bin/README.md) for how to add one.
+`bin/wget` is a bundled static binary used when the host has no `wget`. It is
+only needed for the fast wget strategy; the capture engine and native mirror do
+not require it.
 
 ## Configuration
 
@@ -94,7 +100,10 @@ module `lib/resolveDir.ts`. The full specification is in [`docs/`](docs/).
 - [docs/04-security.md](docs/04-security.md) — SSRF guards and **known gaps**
 - [docs/05-recreation-guide.md](docs/05-recreation-guide.md) — rebuild it from scratch
 - [docs/06-project-structure.md](docs/06-project-structure.md) — every directory
-- [docs/api/](docs/api/) — one document per endpoint, 23 routes plus middleware
+- [docs/07-auth-emulation.md](docs/07-auth-emulation.md) — cloning the login/sign-up journey
+- [docs/08-endpoint-discovery.md](docs/08-endpoint-discovery.md) — finding every endpoint a site uses
+- [docs/09-agent-build-guide.md](docs/09-agent-build-guide.md) — **build guide for an AI agent**
+- [docs/api/](docs/api/) — one document per endpoint, 25 routes plus middleware
 
 ## Before you deploy this publicly
 
@@ -102,6 +111,10 @@ WebStudio has **no authentication**. Every endpoint is open, a job id is the
 only access token, and preview HTML runs with scripts inside your origin. Read
 [docs/04-security.md](docs/04-security.md) first — it lists nine specific gaps
 with suggested fixes, and a seven-step hardening checklist.
+
+## Repository
+
+<https://github.com/chaudharyvivek1/web-studio>
 
 ## Licence and provenance
 

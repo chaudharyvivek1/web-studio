@@ -4,6 +4,8 @@ import fs from 'fs';
 import mime from 'mime-types';
 import { resolveTargetDir, ensureJobExists, getBaseDownloadDir } from '@/lib/resolveDir';
 import { activeJobs } from '@/lib/jobStore';
+import { detectAuthFlow, AuthFlow } from '@/lib/authflow/detect';
+import { buildAuthRuntimeScript } from '@/lib/authflow/runtime';
 
 // Explicit MIME mappings for modern web assets to guarantee proper parsing
 const MIME_OVERRIDES: Record<string, string> = {
@@ -672,6 +674,34 @@ export async function GET(
           </script>
         `;
         content = content.replace(/<head>/i, `<head>${observerOverrideScript}`);
+
+        // Offline auth replay. Injected after the line above so it lands *earlier*
+        // in <head>: each replace inserts immediately after <head>, so the last
+        // insertion ends up first in the document. That ordering matters — the
+        // runtime calls stopImmediatePropagation() on submit and must register
+        // its listener before the legacy handler below.
+        try {
+          const flow = loadAuthFlow(id, baseDir, targetDir, job.hostname);
+          if (flow && flow.hasAuth) {
+            const loginPage =
+              flow.pages.find((p) => p.kind === 'login')?.path || flow.pages[0]?.path || null;
+            const runtime = buildAuthRuntimeScript(
+              {
+                jobId: id,
+                previewBase: `/api/mirror/${id}/preview/`,
+                entryPage: flow.entryPage,
+                sessionCookies: flow.sessionCookies,
+                storageKeys: flow.storageKeys,
+                tokenValue: 'webstudio_offline_session',
+                autoEnrol: true,
+              },
+              loginPage
+            );
+            content = content.replace(/<head>/i, `<head>${runtime}`);
+          }
+        } catch {
+          // A failed auth injection must never break the preview.
+        }
         content = content.replace(/loading=["']lazy["']/gi, 'loading="eager"');
       }
 
@@ -759,3 +789,50 @@ function findFirstHtmlRecursive(dir: string): string | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Auth-flow lookup
+// ---------------------------------------------------------------------------
+
+const authFlowMemo = new Map<string, AuthFlow | null>();
+
+/**
+ * Read the auth flow for a job, preferring the cached `auth-flow.json` written
+ * by `GET /api/mirror/[id]/auth-flow`.
+ *
+ * Detection is only run when no cache exists, and the result (including a
+ * negative one) is memoised for the life of the process so a busy preview does
+ * not rescan the mirror on every HTML request.
+ */
+function loadAuthFlow(
+  id: string,
+  baseDir: string,
+  targetDir: string,
+  hostname: string
+): AuthFlow | null {
+  if (authFlowMemo.has(id)) return authFlowMemo.get(id) ?? null;
+
+  const cachePath = path.join(baseDir, 'auth-flow.json');
+  try {
+    if (fs.existsSync(cachePath)) {
+      const cached = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as AuthFlow;
+      if (cached && typeof cached.hasAuth === 'boolean') {
+        authFlowMemo.set(id, cached);
+        return cached;
+      }
+    }
+  } catch {
+    // fall through to detection
+  }
+
+  try {
+    const flow = detectAuthFlow(id, hostname, targetDir);
+    authFlowMemo.set(id, flow);
+    try {
+      fs.writeFileSync(cachePath, JSON.stringify(flow, null, 2), 'utf-8');
+    } catch {}
+    return flow;
+  } catch {
+    authFlowMemo.set(id, null);
+    return null;
+  }
+}

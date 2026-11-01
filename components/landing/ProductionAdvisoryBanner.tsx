@@ -20,7 +20,7 @@ export function ProductionAdvisoryBanner() {
 
   if (!isProduction || dismissed) return null;
 
-  const cloneCommand = 'git clone https://github.com/krishsoni15/WebStudio.git && cd WebStudio && npm install && npm run dev';
+  const cloneCommand = 'git clone https://github.com/chaudharyvivek1/web-studio.git && cd web-studio && npm install && npm run dev';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cloneCommand);
@@ -85,7 +85,7 @@ export function ProductionAdvisoryBanner() {
 
         {/* GitHub link */}
         <a
-          href="https://github.com/krishsoni15/WebStudio"
+          href="https://github.com/chaudharyvivek1/web-studio"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-opacity shrink-0"

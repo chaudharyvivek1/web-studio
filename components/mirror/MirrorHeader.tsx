@@ -125,7 +125,7 @@ export function MirrorHeader({
           <div className="h-4 w-px bg-border/80 hidden sm:block mx-1" />
 
           <a
-            href="https://github.com/krishsoni15/WebStudio"
+            href="https://github.com/chaudharyvivek1/web-studio"
             target="_blank"
             rel="noreferrer"
             className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-card hover:bg-muted text-xs text-foreground font-mono transition-colors"

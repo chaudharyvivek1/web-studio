@@ -11,10 +11,18 @@ these documents are the contract it is expected to keep.
 | [04-security.md](04-security.md) | SSRF/DNS guards, path traversal, rate limits, and the known gaps |
 | [05-recreation-guide.md](05-recreation-guide.md) | How to rebuild this system from scratch, in dependency order |
 | [06-project-structure.md](06-project-structure.md) | Every directory and what belongs in it |
-| [api/README.md](api/README.md) | Index of all 23 endpoints, one document each |
+| [07-auth-emulation.md](07-auth-emulation.md) | Cloning the login and sign-up journey so a mirrored app can be entered offline |
+| [08-endpoint-discovery.md](08-endpoint-discovery.md) | Finding every endpoint a site uses, including ones the crawler never reached |
+| [09-agent-build-guide.md](09-agent-build-guide.md) | **Build guide for an AI agent**: invariants, build order, module contracts, verification |
+| [api/README.md](api/README.md) | Index of all 25 endpoints, one document each |
 
 ## Reading order
 
 If you are new to the project, read `01` → `02` → `06`, then dip into
 `api/` for whichever endpoint you are touching. Read `04` before you deploy
 anything publicly. Read `05` if you intend to rewrite rather than maintain.
+
+**If you are an AI agent asked to build, extend or repair this project, read
+[09-agent-build-guide.md](09-agent-build-guide.md) before touching anything.**
+It lists the invariants that break the app when violated, the order to build in,
+the contract each module must honour, and how to verify work without a browser.

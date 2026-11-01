@@ -100,7 +100,7 @@ export function Navbar({ onOpenRecent, recentCount = 0, onOpenConfig }: NavbarPr
 
             {/* GitHub button on right side: Displays stars on both Mobile & Desktop */}
             <a
-              href="https://github.com/krishsoni15/WebStudio"
+              href="https://github.com/chaudharyvivek1/web-studio"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 sm:gap-2 text-xs text-foreground px-2.5 sm:px-3 py-1.5 rounded-full border border-slate-200/90 dark:border-white/10 bg-slate-100/80 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] transition-colors shadow-xs shrink-0"
@@ -231,7 +231,7 @@ export function Navbar({ onOpenRecent, recentCount = 0, onOpenConfig }: NavbarPr
             <div className="pt-4 border-t border-border/80 space-y-3">
               {/* GitHub Card */}
               <a
-                href="https://github.com/krishsoni15/WebStudio"
+                href="https://github.com/chaudharyvivek1/web-studio"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center justify-between p-3 rounded-xl border border-border bg-card hover:bg-muted/80 transition-colors shadow-xs"

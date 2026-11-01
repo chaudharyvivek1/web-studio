@@ -16,6 +16,8 @@ import { NetworkTab, NetworkRequestItem } from '@/components/mirror/NetworkTab';
 import { FilesTab, FileNode } from '@/components/mirror/FilesTab';
 import { HealthTab, HealthIssueItem } from '@/components/mirror/HealthTab';
 import { LogsTab } from '@/components/mirror/LogsTab';
+import { AuthFlowTab } from '@/components/mirror/AuthFlowTab';
+import { EndpointsTab } from '@/components/mirror/EndpointsTab';
 import { DraggableTerminal } from '@/components/crawl/DraggableTerminal';
 import { CancelConfirmationModal } from '@/components/crawl/CancelConfirmationModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -35,6 +37,8 @@ import {
   MonitorPlay,
   Clock,
   Gauge,
+  KeyRound,
+  Network,
 } from 'lucide-react';
 
 interface StatsState {
@@ -803,6 +807,20 @@ export default function MirrorPage() {
                     <Terminal className="w-3.5 h-3.5" />
                     <span>Crawl Logs</span>
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="auth"
+                    className="text-xs px-3.5 py-1.5 rounded-md border border-border/40 data-[state=active]:border-border data-[state=active]:bg-foreground data-[state=active]:text-background font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Auth Flow</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="endpoints"
+                    className="text-xs px-3.5 py-1.5 rounded-md border border-border/40 data-[state=active]:border-border data-[state=active]:bg-foreground data-[state=active]:text-background font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    <span>Endpoints</span>
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -891,6 +909,16 @@ export default function MirrorPage() {
               {/* Tab 8: Logs */}
               <TabsContent value="logs" className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden overflow-hidden">
                 <LogsTab id={id} rawLogs={crawlLogs} />
+              </TabsContent>
+
+              {/* Tab 9: Auth Flow */}
+              <TabsContent value="auth" className="flex-1 min-h-0 overflow-y-auto mt-2 data-[state=inactive]:hidden pr-1 pb-4">
+                <AuthFlowTab id={id} />
+              </TabsContent>
+
+              {/* Tab 10: Endpoints */}
+              <TabsContent value="endpoints" className="flex-1 min-h-0 overflow-y-auto mt-2 data-[state=inactive]:hidden pr-1 pb-4">
+                <EndpointsTab id={id} />
               </TabsContent>
             </Tabs>
           </div>

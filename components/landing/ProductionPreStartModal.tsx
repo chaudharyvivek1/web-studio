@@ -22,7 +22,7 @@ export function ProductionPreStartModal({
 
   if (!isOpen) return null;
 
-  const cloneCommand = 'git clone https://github.com/krishsoni15/WebStudio.git && cd WebStudio && npm install && npm run dev';
+  const cloneCommand = 'git clone https://github.com/chaudharyvivek1/web-studio.git && cd web-studio && npm install && npm run dev';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cloneCommand);
@@ -133,7 +133,7 @@ export function ProductionPreStartModal({
 
           <div className="flex items-center justify-end">
             <a
-              href="https://github.com/krishsoni15/WebStudio"
+              href="https://github.com/chaudharyvivek1/web-studio"
               target="_blank"
               rel="noreferrer"
               className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors font-medium"

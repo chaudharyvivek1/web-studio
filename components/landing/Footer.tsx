@@ -24,13 +24,13 @@ export function Footer() {
 
         <div className="flex items-center gap-4">
           <a
-            href="https://github.com/krishsoni15/WebStudio"
+            href="https://github.com/chaudharyvivek1/web-studio"
             target="_blank"
             rel="noreferrer"
             className="hover:text-foreground transition-colors flex items-center gap-1 font-medium"
           >
             <GithubIcon className="w-3.5 h-3.5 text-foreground" />
-            GitHub
+            github.com/chaudharyvivek1/web-studio
           </a>
           <span className="text-muted-foreground/40">•</span>
           <span className="font-mono text-[11px] text-muted-foreground">MIT Open Source</span>
