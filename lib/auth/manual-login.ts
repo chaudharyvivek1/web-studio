@@ -18,6 +18,8 @@ export interface ActiveLoginSession {
   browser: Browser | null;
   context: BrowserContext | null;
   startedAt: number;
+  /** True when no window could be shown, so the visitor cannot interact */
+  headless?: boolean;
   storageState?: PlaywrightStorageState;
   error?: string;
 }
@@ -49,11 +51,18 @@ export async function startManualLogin(targetUrl: string): Promise<string> {
   // Launch browser asynchronously
   (async () => {
     try {
-      // Check if DISPLAY or WAYLAND_DISPLAY exists for headed mode
-      const hasDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+      // A manual login only works if the visitor can actually see the window.
+      // Windows and macOS always have a desktop session; Linux depends on
+      // DISPLAY / WAYLAND_DISPLAY. WEBSTUDIO_LOGIN_HEADLESS=1 forces headless
+      // for server deployments, where the UI warns that no window will appear.
+      const desktopPlatform = process.platform === 'win32' || process.platform === 'darwin';
+      const hasDisplay =
+        desktopPlatform || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+      const forceHeadless = process.env.WEBSTUDIO_LOGIN_HEADLESS === '1';
+      const useHeadless = forceHeadless || !hasDisplay;
 
       const browser = await chromium.launch({
-        headless: !hasDisplay, // Headed if desktop display available, fallback to headless
+        headless: useHeadless, // headed whenever a desktop session exists
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -70,6 +79,7 @@ export async function startManualLogin(targetUrl: string): Promise<string> {
 
       session.browser = browser;
       session.context = context;
+      session.headless = useHeadless;
       session.status = 'awaiting_login';
 
       const page = await context.newPage();
@@ -100,6 +110,7 @@ export function getManualLoginStatus(sessionId: string): {
   url: string;
   error?: string;
   hasState: boolean;
+  headless: boolean;
 } | null {
   const session = activeSessions.get(sessionId);
   if (!session) return null;
@@ -111,6 +122,7 @@ export function getManualLoginStatus(sessionId: string): {
     url: session.url,
     error: session.error,
     hasState: Boolean(session.storageState),
+    headless: Boolean(session.headless),
   };
 }
 

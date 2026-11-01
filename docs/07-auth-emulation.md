@@ -110,6 +110,36 @@ What it does on the page:
 Namespacing by job id means two mirrors on the same studio origin never share
 accounts.
 
+## Manual login before capture
+
+The other half of the auth story runs *before* a capture exists. Many sites sit
+behind 2FA, SSO or a captcha that no automated login can clear. For those, the
+landing page offers **Sign in first** next to the URL field:
+
+1. `POST /api/auth/login {action:"start", url}` launches a real Chromium window
+   at the target.
+2. The UI polls `{action:"status", sessionId}` every 2 seconds while you sign in.
+   The window stays open until you confirm — you can handle a second factor, a
+   magic link or an OAuth redirect in it.
+3. Pressing **I'm signed in — start scan** calls
+   `{action:"complete", sessionId, profileName}`, which snapshots the cookies and
+   `localStorage` into a stored auth profile and closes the window.
+4. The profile id is passed straight to `POST /api/mirror` as `authProfileId`,
+   so the capture begins immediately and runs authenticated.
+
+That last hop is why the crawl reaches the private area:
+`JobManager.createJob` loads `profile.storage_state` into the job, and the engine
+sets `forceBrowser = mode === 'browser' || !!options.storageState` — the presence
+of a session forces the Playwright engine, which executes the app's JavaScript
+and therefore captures the rendered authenticated pages.
+
+**Headed mode matters.** A manual login is only possible if a window can appear.
+`startManualLogin` uses headed mode whenever a desktop session exists
+(`win32` or `darwin` always; Linux needs `DISPLAY` or `WAYLAND_DISPLAY`).
+Set `WEBSTUDIO_LOGIN_HEADLESS=1` to force headless on a server — the status
+payload then reports `headless: true` and the dialog warns that signing in is
+impossible there rather than silently storing an unauthenticated session.
+
 ## The studio surface
 
 `GET /api/mirror/[id]/auth-flow` returns the detection result; the **Auth Flow**

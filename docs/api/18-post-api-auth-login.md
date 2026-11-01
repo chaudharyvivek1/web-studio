@@ -38,6 +38,30 @@ A single route multiplexes four actions.
 | 500 | `{"error":"Failed to capture session"}` | `complete` failed |
 | 500 | `{"error":"Manual login API error"}` | unhandled exception |
 
+## The intended end-to-end flow
+
+This route is designed to be driven by the landing page's **Sign in first**
+control, then handed straight to a capture:
+
+```
+POST /api/auth/login  {action:"start", url}
+        → { sessionId }
+POST /api/auth/login  {action:"status", sessionId}     (poll every 2s)
+        → { session: { status: "awaiting_login", headless: false } }
+POST /api/auth/login  {action:"complete", sessionId, profileName}
+        → { profileId }
+POST /api/mirror      { url, authProfileId: profileId, ...config }
+        → { id }                                        authenticated crawl
+```
+
+`profileName` is **required to receive a `profileId`** — `completeManualLogin`
+only persists a profile when a name is supplied, and without a `profileId` the
+capture has nothing to authenticate with.
+
+The `status` payload includes `headless: boolean`. When it is `true` no browser
+window could be shown, so the operator cannot sign in; the UI says so instead of
+inviting a click that would store an empty session.
+
 ## Reimplementation notes
 
 - `action` is the only required field; sending `{}` yields the

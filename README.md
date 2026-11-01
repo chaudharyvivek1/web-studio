@@ -34,6 +34,11 @@ If the mirrored site has a login, the offline copy **works**: a visitor can
 create an account or sign in locally and be taken through into the authenticated
 area. See [docs/07-auth-emulation.md](docs/07-auth-emulation.md).
 
+For sites behind 2FA, SSO or a captcha, use **Sign in first** next to the URL
+field: a browser window opens, you log in by hand, the session is captured, and
+the scan starts by itself — authenticated, so it reaches the private pages and
+endpoints.
+
 When you are done, one click produces a ZIP containing the mirror plus a
 zero-dependency Node server, a zero-dependency Python server, and launcher
 scripts for macOS, Linux and Windows.

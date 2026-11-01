@@ -216,6 +216,25 @@ Detection is heuristic: it looks for `<form>` elements containing
 through an OAuth popup, will not be found. Check `notes` in the API response — it
 explains which signals were missing.
 
+### "Sign in first" opens nothing
+
+`startManualLogin` launches headed only when a desktop session exists: `win32`
+and `darwin` always count; Linux needs `DISPLAY` or `WAYLAND_DISPLAY`. If none is
+present it falls back to headless, the status payload reports `headless: true`,
+and the dialog warns that you cannot sign in on this host.
+
+Fix: run WebStudio on a desktop session. On a headless server, capture the
+session on a machine with a display — `POST /api/auth/profiles` accepts a
+`storageState` JSON — then pass that profile's id as `authProfileId`. Setting
+`WEBSTUDIO_LOGIN_HEADLESS=1` forces headless deliberately.
+
+### "Sign in first" captures a session but the crawl is not authenticated
+
+The profile must reach the job. Confirm the capture request includes
+`authProfileId`; `JobManager.createJob` only loads the storage state when it is
+present, and the engine only forces the browser path when
+`options.storageState` is set.
+
 ### A wrong password is accepted
 
 `autoEnrol` is on by default: an unknown email is enrolled on first login so the

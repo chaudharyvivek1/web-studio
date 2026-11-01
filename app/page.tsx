@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/landing/Navbar';
 import { Hero } from '@/components/landing/Hero';
 import { URLInput } from '@/components/landing/URLInput';
+import {
+  ManualLoginDialog,
+  ManualLoginTrigger,
+  AuthProfilePill,
+} from '@/components/capture/ManualLoginDialog';
 import { CapturePresets, PresetKey } from '@/components/landing/CapturePresets';
 import {
   CaptureConfigDialog,
@@ -28,6 +33,11 @@ export default function Home() {
   // Core URL State
   const [url, setUrl] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<PresetKey>('full');
+  // Manual login before capture: the stored profile id is passed to
+  // POST /api/mirror as authProfileId so the crawl runs authenticated.
+  const [manualLoginOpen, setManualLoginOpen] = useState(false);
+  const [authProfileId, setAuthProfileId] = useState<string | null>(null);
+  const [authProfileName, setAuthProfileName] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isProductionHost, setIsProductionHost] = useState(false);
   const [isPreStartModalOpen, setIsPreStartModalOpen] = useState(false);
@@ -138,9 +148,12 @@ export default function Home() {
     }
   };
 
-  const executeCapture = async () => {
+  const executeCapture = async (profileIdOverride?: string) => {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
+
+    // State updates are async, so a freshly captured profile arrives by argument.
+    const profileId = profileIdOverride ?? authProfileId ?? undefined;
 
     let target = trimmedUrl;
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
@@ -155,6 +168,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: target,
+          ...(profileId ? { authProfileId: profileId } : {}),
           preset: selectedPreset === 'custom' ? undefined : selectedPreset,
           mode: config.crawlMode,
           scopeConfig: {
@@ -256,6 +270,29 @@ export default function Home() {
           errorMessage={serverError}
         />
 
+        {/* Manual login option: authenticate first, then the scan starts itself */}
+        <div className="w-full max-w-3xl mx-auto mt-2 flex items-center justify-center gap-3 flex-wrap">
+          {authProfileId ? (
+            <AuthProfilePill
+              profileName={authProfileName || 'stored session'}
+              onClear={() => {
+                setAuthProfileId(null);
+                setAuthProfileName(null);
+              }}
+            />
+          ) : (
+            <>
+              <ManualLoginTrigger
+                onClick={() => setManualLoginOpen(true)}
+                disabled={isLoading || !url.trim()}
+              />
+              <span className="text-[10px] text-muted-foreground/60">
+                for sites behind a login — sign in, then the capture runs authenticated
+              </span>
+            </>
+          )}
+        </div>
+
         {/* Free Cloud Environment Advisory Banner (Shown on Render / Production) */}
         <ProductionAdvisoryBanner />
 
@@ -318,6 +355,20 @@ export default function Home() {
         jobs={recentJobs}
         onClearJobs={handleClearJobs}
         onDeleteJob={handleDeleteJob}
+      />
+
+      {/* Manual login before capture */}
+      <ManualLoginDialog
+        open={manualLoginOpen}
+        url={url}
+        onClose={() => setManualLoginOpen(false)}
+        onAuthenticated={(profileId, profileName) => {
+          setAuthProfileId(profileId);
+          setAuthProfileName(profileName);
+          setManualLoginOpen(false);
+          // Start the scan immediately with the captured session.
+          executeCapture(profileId);
+        }}
       />
 
       {/* Production Environment Pre-Start Advisory Modal */}
