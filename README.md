@@ -66,9 +66,9 @@ npm run build
 npm start
 ```
 
-`bin/wget` is a bundled static binary used when the host has no `wget`. It is
-only needed for the fast wget strategy; the capture engine and native mirror do
-not require it.
+The wget strategy uses the system `wget` on `PATH`. If the host has none — mainly
+small serverless containers — an optional bundled binary can be dropped at
+`bin/wget`. See [`bin/README.md`](bin/README.md) for how to add one.
 
 ## Configuration
 

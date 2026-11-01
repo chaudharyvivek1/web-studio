@@ -56,7 +56,7 @@ web-studio/
 │   ├── logoData.ts           Embedded favicon/logo data URIs
 │   └── utils/                format.ts · logger.ts
 │
-├── bin/wget                  Static x86-64 wget, used when the host has none
+├── bin/                      Optional bundled wget binary (not committed)
 ├── middleware.ts             SPA asset rewrite (edge runtime)
 ├── scripts/crawler_auth.cjs  Standalone authenticated-crawl script
 ├── public/                   Static assets
