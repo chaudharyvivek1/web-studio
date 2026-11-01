@@ -122,6 +122,44 @@ $env:PORT=3001; npm run dev    # PowerShell
 
 ---
 
+### Everything returns 503 "running in production without WEBSTUDIO_ACCESS_TOKEN"
+
+You are in production mode with no access token. That is a deliberate fail-closed
+default, not a bug.
+
+```bash
+WEBSTUDIO_ACCESS_TOKEN=$(openssl rand -hex 24)
+```
+
+Then restart. Set `WEBSTUDIO_ALLOW_OPEN=1` only if the instance genuinely is not
+reachable by anyone else.
+
+### Locked out — I set a token and cannot get in
+
+Go to `/login` and paste the exact value of `WEBSTUDIO_ACCESS_TOKEN`. It must be
+at least 8 characters or it is treated as unset. Sessions last seven days;
+rotating the token invalidates every existing session, so sign in again.
+
+If `/login` itself redirects in a loop, `NODE_ENV=production` with a short token
+is the usual cause — check the token length.
+
+### Every API call returns 401 but the pages load
+
+The cookie is `Secure` in production, so it is not sent over plain `http`. Terminate
+TLS in front of the app, or run with `NODE_ENV=development` locally.
+
+### Stored auth profiles stop working after a deploy
+
+`WEBSTUDIO_SECRET` changed. Sealed values cannot be opened with a different key —
+they return empty rather than throwing. Re-capture the session, and keep the
+secret stable.
+
+### Jobs 404 after a redeploy
+
+`WEBSTUDIO_DATA_DIR` / `WEBSTUDIO_DOWNLOAD_DIR` are not on a mounted volume, so the
+container filesystem was discarded. See
+[12-deployment.md](12-deployment.md).
+
 ## Running
 
 ### The dev server starts but every job 404s
