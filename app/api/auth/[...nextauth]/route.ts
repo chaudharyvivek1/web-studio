@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.pathname.toLowerCase();
+  // These routes exist so a mirrored NextAuth site works offline. They must not
+  // be reachable as a real session source, so they only answer when the request
+  // originates from a mirror preview (the cookie the preview route sets).
+  const previewId = req.cookies.get('webstudio_preview_id')?.value;
+  if (!previewId) {
+    return NextResponse.json(
+      { error: 'This endpoint only responds inside a mirror preview.' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
 
   if (url.includes('/session')) {
     return NextResponse.json({
@@ -38,6 +49,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const url = req.nextUrl.pathname.toLowerCase();
+  // These routes exist so a mirrored NextAuth site works offline. They must not
+  // be reachable as a real session source, so they only answer when the request
+  // originates from a mirror preview (the cookie the preview route sets).
+  const previewId = req.cookies.get('webstudio_preview_id')?.value;
+  if (!previewId) {
+    return NextResponse.json(
+      { error: 'This endpoint only responds inside a mirror preview.' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
 
   if (url.includes('/callback') || url.includes('/signin')) {
     return NextResponse.json(

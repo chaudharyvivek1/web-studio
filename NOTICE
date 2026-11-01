@@ -51,12 +51,32 @@ retained. Both are present in `LICENSE`.
   scripts into one catalogue, surfacing routes the crawler never reached.
 - **Branding** — the footer now links to this repository.
 
+**Security hardening**
+
+- **Access gate** — `lib/security/app-auth.ts`, `app/login/page.tsx` and
+  `app/api/auth/access/route.ts`. A shared `WEBSTUDIO_ACCESS_TOKEN` is exchanged
+  for a signed, HttpOnly session cookie, enforced for every route in
+  `middleware.ts`. Production with no token fails closed with a 503.
+- **CSRF** — `middleware.ts` rejects state-changing requests that arrive
+  cross-site, judged by `Sec-Fetch-Site` and `Origin`.
+- **SSRF fix** — `POST /api/mirror/auth` now runs the same URL validation, DNS
+  guard and rate limiting as `POST /api/mirror`.
+- **Encrypted profiles** — `lib/security/crypto.ts` seals stored authentication
+  profiles with AES-256-GCM; plaintext rows keep working and migrate lazily.
+- **Mock auth contained** — `/api/auth/session` and `/api/auth/[...nextauth]`
+  now refuse requests that did not come from a mirror preview.
+- **Deployment** — `render.yaml` corrected to Node 22, a realistic heap, a
+  mounted disk and generated secrets; storage paths are now configurable via
+  `WEBSTUDIO_DATA_DIR` and `WEBSTUDIO_DOWNLOAD_DIR`.
+- **Preview route split** — MIME overrides, path resolution and the containment
+  guard moved into `lib/preview/`.
+
 **Additions**
 
 - `docs/` — a full specification: architecture, crawl lifecycle, data model,
   security model including known gaps, a recreation guide, a structure map, an
   auth-emulation spec, an endpoint-discovery spec, a build guide written for an
-  AI agent, and one document per API endpoint (26 routes plus the edge
+  AI agent, and one document per API endpoint (27 routes plus the edge
   middleware).
 - `LICENSE` — the MIT text, retaining the upstream copyright line.
 - `NOTICE` — this file.

@@ -118,14 +118,22 @@ module `lib/resolveDir.ts`. The full specification is in [`docs/`](docs/).
 - [docs/09-agent-build-guide.md](docs/09-agent-build-guide.md) — **build guide for an AI agent**
 - [docs/10-troubleshooting.md](docs/10-troubleshooting.md) — install failures, native modules, preview and crawl problems
 - [docs/11-live-proxy.md](docs/11-live-proxy.md) — rendering the real site through the live proxy
+- [docs/12-deployment.md](docs/12-deployment.md) — sizing, persistent storage, smoke test
 - [docs/api/](docs/api/) — one document per endpoint, 25 routes plus middleware
 
 ## Before you deploy this publicly
 
-WebStudio has **no authentication**. Every endpoint is open, a job id is the
-only access token, and preview HTML runs with scripts inside your origin. Read
-[docs/04-security.md](docs/04-security.md) first — it lists nine specific gaps
-with suggested fixes, and a seven-step hardening checklist.
+Set `WEBSTUDIO_ACCESS_TOKEN`. Every route is then gated behind `/login` with a
+signed, HttpOnly session cookie; production with no token refuses to serve rather
+than running open. Also set `WEBSTUDIO_SECRET` so stored authentication profiles
+are encrypted at rest, and point `WEBSTUDIO_DATA_DIR` / `WEBSTUDIO_DOWNLOAD_DIR` at
+a mounted volume so captures survive a redeploy.
+
+Two things remain open by design and are worth knowing: preview HTML runs with
+scripts in this origin (serve previews from a separate origin if you mirror
+untrusted sites), and there is one shared token rather than per-user accounts.
+[docs/04-security.md](docs/04-security.md) lists what is fixed, what is not, and
+[docs/12-deployment.md](docs/12-deployment.md) covers sizing and storage.
 
 ## Repository
 
