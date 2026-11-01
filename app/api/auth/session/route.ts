@@ -1,6 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // These routes exist so a mirrored NextAuth site works offline. They must not
+  // be reachable as a real session source, so they only answer when the request
+  // originates from a mirror preview (the cookie the preview route sets).
+  const previewId = req.cookies.get('webstudio_preview_id')?.value;
+  if (!previewId) {
+    return NextResponse.json(
+      { error: 'This endpoint only responds inside a mirror preview.' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   return NextResponse.json(
     {
       user: {
@@ -21,6 +32,6 @@ export async function GET() {
   );
 }
 
-export async function POST() {
-  return GET();
+export async function POST(req: NextRequest) {
+  return GET(req);
 }

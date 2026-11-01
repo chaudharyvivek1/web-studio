@@ -2,34 +2,20 @@ import { NextRequest } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import mime from 'mime-types';
+import { MIME_OVERRIDES } from '@/lib/preview/mime';
+import {
+  escapeRegExp,
+  resolveFileOrDirectoryIndex,
+  findFileRecursive,
+  findFirstHtmlRecursive,
+} from '@/lib/preview/paths';
+import { isWithinBase } from '@/lib/preview/security';
 import { resolveTargetDir, ensureJobExists, getBaseDownloadDir } from '@/lib/resolveDir';
 import { activeJobs } from '@/lib/jobStore';
 import { detectAuthFlow, AuthFlow } from '@/lib/authflow/detect';
 import { buildAuthRuntimeScript } from '@/lib/authflow/runtime';
 
 // Explicit MIME mappings for modern web assets to guarantee proper parsing
-const MIME_OVERRIDES: Record<string, string> = {
-  '.js': 'application/javascript; charset=utf-8',
-  '.mjs': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.html': 'text/html; charset=utf-8',
-  '.htm': 'text/html; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-  '.woff': 'font/woff',
-  '.ttf': 'font/ttf',
-  '.otf': 'font/otf',
-  '.eot': 'application/vnd.ms-fontobject',
-  '.webp': 'image/webp',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.ico': 'image/x-icon',
-  '.md': 'text/markdown; charset=utf-8',
-  '.txt': 'text/plain; charset=utf-8',
-};
 
 export async function GET(
   req: NextRequest,
@@ -56,52 +42,6 @@ export async function GET(
     const primaryPath = path.join(targetDir, ...segments);
 
     // Helper to resolve exact file, .html variant, or directory index
-    function resolveFileOrDirectoryIndex(p: string): string | null {
-      try {
-        let actualPath = p;
-
-        // 1. Direct path exists
-        if (fs.existsSync(actualPath)) {
-          const stat = fs.statSync(actualPath);
-          if (stat.isDirectory()) {
-            const indexHtml = path.join(actualPath, 'index.html');
-            if (fs.existsSync(indexHtml) && !fs.statSync(indexHtml).isDirectory()) {
-              return indexHtml;
-            }
-          } else {
-            return actualPath;
-          }
-        }
-
-        // 2. Extensionless route check (e.g. /apps/email -> /apps/email.html)
-        if (fs.existsSync(actualPath + '.html')) {
-          return actualPath + '.html';
-        }
-        if (fs.existsSync(actualPath + '.htm')) {
-          return actualPath + '.htm';
-        }
-
-        // 3. Fallback: match file ignoring query parameters or URL-encoded symbols
-        const dir = path.dirname(p);
-        const base = path.basename(p);
-        if (fs.existsSync(dir)) {
-          const files = fs.readdirSync(dir);
-          const cleanBase = base.split('?')[0].split('%3F')[0].split('@')[0];
-          const matched = files.find(f => {
-            if (f === base) return true;
-            const cleanF = f.split('?')[0].split('%3F')[0].split('@')[0];
-            if (cleanF === cleanBase || cleanF === base) return true;
-            if (f.startsWith(base + '?') || f.startsWith(base + '%3F') || f.startsWith(base + '@')) return true;
-            if (f.startsWith(cleanBase + '?') || f.startsWith(cleanBase + '%3F') || f.startsWith(cleanBase + '@')) return true;
-            return false;
-          });
-          if (matched) {
-            return path.join(dir, matched);
-          }
-        }
-      } catch {}
-      return null;
-    }
 
     let resolvedFilePath = resolveFileOrDirectoryIndex(primaryPath);
     let pathFound = resolvedFilePath !== null;
@@ -323,11 +263,8 @@ export async function GET(
       }
     }
 
-    // Security: Prevent directory traversal attacks
-    const safeBaseJob = path.resolve(baseDir);
-    const resolvedPath = path.resolve(filePath);
-
-    if (!resolvedPath.startsWith(safeBaseJob)) {
+    // Security: containment is checked once, after every resolution tier has run.
+    if (!isWithinBase(filePath, baseDir)) {
       return new Response('Forbidden: Path traversal detected', { status: 403 });
     }
 
@@ -735,59 +672,10 @@ export async function GET(
   }
 }
 
-function escapeRegExp(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /** Recursively search for a file by name within a directory */
-function findFileRecursive(dir: string, targetName: string): string | null {
-  try {
-    const list = fs.readdirSync(dir);
-    for (const item of list) {
-      if (item.startsWith('.')) continue;
-      const full = path.join(dir, item);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
-        const found = findFileRecursive(full, targetName);
-        if (found) return found;
-      } else if (item === targetName) {
-        return full;
-      }
-    }
-  } catch {}
-  return null;
-}
 
 /** Recursively search for any .html or .htm file in a directory */
-function findFirstHtmlRecursive(dir: string): string | null {
-  try {
-    if (!fs.existsSync(dir)) return null;
-    const list = fs.readdirSync(dir);
-    for (const item of list) {
-      if (item.startsWith('.')) continue;
-      const full = path.join(dir, item);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
-        const found = findFirstHtmlRecursive(full);
-        if (found) return found;
-      } else if (item.endsWith('.html') || item.endsWith('.htm')) {
-        try {
-          const sample = fs.readFileSync(full, 'utf-8').slice(0, 1500);
-          if (
-            sample.includes('<title>Error 404') ||
-            sample.includes('404. That’s an error') ||
-            sample.includes('af-error-container') ||
-            sample.includes('robot.png')
-          ) {
-            continue;
-          }
-        } catch {}
-        return full;
-      }
-    }
-  } catch {}
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Auth-flow lookup
