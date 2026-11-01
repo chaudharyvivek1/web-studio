@@ -16,7 +16,8 @@ these documents are the contract it is expected to keep.
 | [09-agent-build-guide.md](09-agent-build-guide.md) | **Build guide for an AI agent**: invariants, build order, module contracts, verification |
 | [10-troubleshooting.md](10-troubleshooting.md) | Install failures (including the Windows `node-gyp` trap), native modules, preview and crawl problems |
 | [11-live-proxy.md](11-live-proxy.md) | Snapshot vs Live: rendering the real site through the proxy, and signing in to it |
-| [api/README.md](api/README.md) | Index of all 26 endpoints, one document each |
+| [12-deployment.md](12-deployment.md) | Sizing, persistent storage, required environment, and a deployment smoke test |
+| [api/README.md](api/README.md) | Index of all 27 endpoints, one document each |
 
 ## Reading order
 
