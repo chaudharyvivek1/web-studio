@@ -1,0 +1,54 @@
+# NOTICE
+
+## Upstream work
+
+WebStudio is derived from **WebHarvest** by krishsoni15:
+
+- Source: https://github.com/krishsoni15/WebHarvest
+- Licence: MIT
+- Upstream commit this derivative was taken from: `c144d998b79e5af3a5b249cafd7ccf82c2aaca21`
+
+The MIT licence of the upstream project permits modification and
+redistribution provided the copyright notice and permission notice are
+retained. Both are present in `LICENSE`.
+
+## What this repository changed
+
+**Renaming and metadata**
+
+- Project name `WebHarvest` → `WebStudio` throughout (192 occurrences across
+  81 files), including UI copy, page titles, log prefixes, cookie names
+  (`webstudio_preview_id`, `webstudio_mock_session_token`) and postMessage
+  event names (`webstudio:login_submit`).
+- `components/ui/WebHarvestLogo.tsx` → `components/ui/WebStudioLogo.tsx`, with
+  all three importing files updated.
+- `package.json` name, version and description; `package-lock.json` root entry;
+  `render.yaml` service name.
+
+**Code changes**
+
+- `app/api/github-stars/route.ts` rewritten: the upstream repository path was
+  hard-coded. It now reads `GITHUB_REPO` from the environment and returns
+  `{ "stars": null }` when unset, instead of reporting a misleading count.
+  This is the only behavioural change to an endpoint.
+
+**Additions**
+
+- `docs/` — a full specification: architecture, crawl lifecycle, data model,
+  security model including known gaps, a recreation guide, a structure map, and
+  one document per API endpoint (23 routes plus the edge middleware).
+- `LICENSE` — the MIT text, retaining the upstream copyright line.
+- `NOTICE` — this file.
+- `.env.example` — the supported environment variables.
+
+## What was deliberately not changed
+
+The crawling engine, preview route, security modules, processors, database
+layer and UI components are carried over **unchanged apart from the rename**.
+They were not refactored, because the behaviour of a 13,000-line crawler is
+expensive to re-verify and a rewrite would have silently changed what the
+product does. Where the original has sharp edges — the four-strategy dispatch,
+the third-party template special-cases, the plaintext auth profiles — they are
+documented in `docs/04-security.md` and `docs/05-recreation-guide.md` rather
+than quietly removed.
+
