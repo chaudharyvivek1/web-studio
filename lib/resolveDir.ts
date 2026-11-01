@@ -1,0 +1,342 @@
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { activeJobs } from '@/lib/jobStore';
+
+/**
+ * Get the base directory for downloads, handling read-only environments like Vercel.
+ */
+export function getBaseDownloadDir(id?: string): string {
+  const baseDir = (process.env.VERCEL || process.env.NOW_BUILDER || process.env.NODE_ENV === 'production')
+    ? path.join(os.tmpdir(), 'downloads')
+    : path.join(process.cwd(), 'tmp', 'downloads');
+  return id ? path.join(baseDir, id) : baseDir;
+}
+
+/**
+ * Centralized directory resolution for mirrored sites.
+ * 
+ * Every API route MUST use this single function to find the correct
+ * target directory for a given job. This eliminates race conditions
+ * and inconsistencies caused by each route independently guessing
+ * the hostname subdirectory.
+ * 
+ * Resolution priority:
+ *   1. Cached `resolvedDir` on the job object (instant, stable)
+ *   2. Exact hostname match
+ *   3. www. variant (add or remove)
+ *   4. Subdirectory containing index.html
+ *   5. Largest-file-count heuristic (fallback)
+ */
+export function resolveTargetDir(id: string, hostname: string): string {
+  const baseDir = getBaseDownloadDir(id);
+
+  if (!fs.existsSync(baseDir)) {
+    return baseDir;
+  }
+
+  const job = activeJobs.get(id);
+
+  // Check if we already resolved this job's directory (only use cache if completed and directory actually exists and has content)
+  if (job?.status === 'completed' && job?.resolvedDir && fs.existsSync(job.resolvedDir)) {
+    if (fs.existsSync(path.join(job.resolvedDir, 'index.html')) || countFilesRecursive(job.resolvedDir) > 0) {
+      return job.resolvedDir;
+    }
+  }
+
+  const INTERNAL_DIRS = new Set([
+    'assets',
+    'pages',
+    'logs',
+    'analysis',
+    'screenshots',
+    'data',
+    'node_modules',
+    '.git',
+    'css',
+    'js',
+    'fonts',
+    'images',
+  ]);
+
+  try {
+    // If baseDir already has manifest.json, report.json, or pages directory, baseDir IS the root!
+    if (
+      fs.existsSync(path.join(baseDir, 'manifest.json')) ||
+      fs.existsSync(path.join(baseDir, 'report.json')) ||
+      fs.existsSync(path.join(baseDir, 'pages')) ||
+      fs.existsSync(path.join(baseDir, 'assets')) ||
+      fs.existsSync(path.join(baseDir, 'index.html'))
+    ) {
+      if (job?.status === 'completed') {
+        cacheResolvedDir(id, baseDir);
+      }
+      return baseDir;
+    }
+
+    const items = fs.readdirSync(baseDir).filter(f => !f.startsWith('.') && f !== 'crawl_logs.txt');
+
+    const subdirs = items.filter(f => {
+      try {
+        return fs.statSync(path.join(baseDir, f)).isDirectory() && !INTERNAL_DIRS.has(f.toLowerCase());
+      } catch {
+        return false;
+      }
+    });
+
+    if (subdirs.length > 0) {
+      const cleanHostname = hostname.toLowerCase().replace('www.', '');
+
+      const scoredDirs = subdirs.map(dir => {
+        const dirPath = path.join(baseDir, dir);
+        const count = countFilesRecursive(dirPath);
+        
+        const lowerDir = dir.toLowerCase();
+        const isDomainMatch = lowerDir.includes(cleanHostname) || cleanHostname.includes(lowerDir);
+        const hasIndex = fs.existsSync(path.join(dirPath, 'index.html'));
+        
+        let multiplier = 1;
+        if (isDomainMatch) multiplier *= 10000;
+        if (hasIndex) multiplier *= 5;
+
+        const score = count * multiplier;
+
+        return { dir, count, score };
+      });
+
+      scoredDirs.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return b.count - a.count;
+      });
+
+      if (scoredDirs[0].count > 0) {
+        const targetDir = path.join(baseDir, scoredDirs[0].dir);
+        if (job?.status === 'completed') {
+          cacheResolvedDir(id, targetDir);
+        }
+        return targetDir;
+      }
+    }
+
+    // Check if index.html or files exist directly in baseDir
+    const nonLogFiles = items.filter(f => {
+      try {
+        return fs.statSync(path.join(baseDir, f)).isFile();
+      } catch {
+        return false;
+      }
+    });
+
+    if (fs.existsSync(path.join(baseDir, 'index.html')) || nonLogFiles.length > 0) {
+      if (job?.status === 'completed') {
+        cacheResolvedDir(id, baseDir);
+      }
+      return baseDir;
+    }
+  } catch {}
+
+  const fallbackPath = path.join(baseDir, hostname);
+  if (fs.existsSync(fallbackPath)) {
+    if (job?.status === 'completed') {
+      cacheResolvedDir(id, fallbackPath);
+    }
+    return fallbackPath;
+  }
+
+  return baseDir;
+}
+
+import { getJob } from './db/client';
+
+/**
+ * Ensures a job entry exists in the activeJobs map for the given id.
+ * Used by routes that may be called after a server restart (hot reload).
+ */
+export function ensureJobExists(id: string): boolean {
+  const existingJob = activeJobs.get(id);
+  const isInvalidHostname =
+    !existingJob?.hostname ||
+    ['assets', 'logs', 'data', 'pages', 'screenshots', 'mirrored-site'].includes(existingJob.hostname.toLowerCase()) ||
+    !existingJob.hostname.includes('.');
+
+  if (existingJob && !isInvalidHostname) {
+    if (existingJob.status !== 'completed' && existingJob.status !== 'failed') {
+      try {
+        const dbRecord = getJob(id);
+        if (dbRecord && (dbRecord.status === 'completed' || dbRecord.status === 'failed')) {
+          existingJob.status = dbRecord.status === 'completed' ? 'completed' : 'failed';
+          existingJob.completedAt = dbRecord.completed_at || undefined;
+          if (dbRecord.error_message) existingJob.error = dbRecord.error_message;
+          activeJobs.set(id, existingJob);
+        } else {
+          const baseDir = getBaseDownloadDir(id);
+          const jobJsonPath = path.join(baseDir, 'job.json');
+          if (fs.existsSync(jobJsonPath)) {
+            const diskData = JSON.parse(fs.readFileSync(jobJsonPath, 'utf-8'));
+            if (diskData?.status === 'completed' || diskData?.status === 'failed') {
+              existingJob.status = diskData.status;
+              existingJob.completedAt = diskData.completedAt;
+              if (diskData.error) existingJob.error = diskData.error;
+              activeJobs.set(id, existingJob);
+            }
+          }
+        }
+      } catch {}
+    }
+    return true;
+  }
+
+  // 1. Check persistent SQLite database
+  try {
+    const dbRecord = getJob(id);
+    if (dbRecord && dbRecord.hostname && dbRecord.hostname.includes('.')) {
+      activeJobs.set(id, {
+        id: dbRecord.id,
+        url: dbRecord.url,
+        hostname: dbRecord.hostname,
+        status: dbRecord.status === 'completed' ? 'completed' : dbRecord.status === 'failed' ? 'failed' : 'downloading',
+        addedAt: dbRecord.created_at,
+        completedAt: dbRecord.completed_at || undefined,
+        error: dbRecord.error_message || undefined,
+      });
+      return true;
+    }
+  } catch {}
+
+  const baseDir = getBaseDownloadDir(id);
+  if (!fs.existsSync(baseDir)) return false;
+
+  // 2. Check job.json on disk
+  const jobJsonPath = path.join(baseDir, 'job.json');
+  if (fs.existsSync(jobJsonPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(jobJsonPath, 'utf-8'));
+      if (data?.hostname && data.hostname.includes('.') && !['assets', 'logs', 'data', 'pages'].includes(data.hostname.toLowerCase())) {
+        activeJobs.set(id, data);
+        return true;
+      }
+    } catch {}
+  }
+
+  // 3. Check report.json (contains authoritative seedUrl from V3 crawl engine)
+  const reportJsonPath = path.join(baseDir, 'report.json');
+  if (fs.existsSync(reportJsonPath)) {
+    try {
+      const report = JSON.parse(fs.readFileSync(reportJsonPath, 'utf-8'));
+      if (report.seedUrl) {
+        const seedHostname = new URL(report.seedUrl).hostname;
+        const jobData = {
+          id,
+          url: report.seedUrl,
+          hostname: seedHostname,
+          status: (report.completedAt ? 'completed' : 'downloading') as 'completed' | 'downloading',
+          addedAt: report.counters?.startTime || Date.now(),
+        };
+        activeJobs.set(id, jobData);
+        try {
+          fs.writeFileSync(jobJsonPath, JSON.stringify(jobData, null, 2));
+        } catch {}
+        return true;
+      }
+    } catch {}
+  }
+
+  // 4. Check manifest.json
+  const manifestJsonPath = path.join(baseDir, 'manifest.json');
+  if (fs.existsSync(manifestJsonPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestJsonPath, 'utf-8'));
+      if (manifest.startUrl) {
+        const startHostname = new URL(manifest.startUrl).hostname;
+        const jobData = {
+          id,
+          url: manifest.startUrl,
+          hostname: startHostname,
+          status: 'completed' as const,
+          addedAt: Date.now(),
+        };
+        activeJobs.set(id, jobData);
+        try {
+          fs.writeFileSync(jobJsonPath, JSON.stringify(jobData, null, 2));
+        } catch {}
+        return true;
+      }
+    } catch {}
+  }
+
+  // 5. Fallback directory inspection (ignoring internal system directories)
+  const INTERNAL_DIRS = new Set([
+    'assets', 'pages', 'logs', 'analysis', 'screenshots', 'data',
+    'node_modules', '.git', 'css', 'js', 'fonts', 'images',
+  ]);
+
+  try {
+    const items = fs.readdirSync(baseDir).filter(f => !f.startsWith('.') && f !== 'crawl_logs.txt' && f !== 'job.json');
+    if (items.length === 0) return false;
+
+    const subdirs = items.filter(f => {
+      try {
+        return fs.statSync(path.join(baseDir, f)).isDirectory() && !INTERNAL_DIRS.has(f.toLowerCase());
+      } catch {
+        return false;
+      }
+    });
+
+    if (subdirs.length > 0) {
+      let bestHostname = subdirs[0];
+      let maxFiles = -1;
+
+      for (const dir of subdirs) {
+        const count = countFilesRecursive(path.join(baseDir, dir));
+        if (count > maxFiles) {
+          maxFiles = count;
+          bestHostname = dir;
+        }
+      }
+
+      activeJobs.set(id, {
+        id,
+        url: `https://${bestHostname}`,
+        hostname: bestHostname,
+        status: 'completed',
+        addedAt: Date.now(),
+      });
+
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+/** Cache the resolved directory on the job object for stability */
+function cacheResolvedDir(id: string, dir: string) {
+  const job = activeJobs.get(id);
+  if (job) {
+    job.resolvedDir = dir;
+    activeJobs.set(id, job);
+  }
+}
+
+/** Count files recursively in a directory */
+function countFilesRecursive(dir: string): number {
+  let count = 0;
+  try {
+    const list = fs.readdirSync(dir);
+    for (const item of list) {
+      if (item.startsWith('.') || item === 'crawl_logs.txt') continue;
+      const fp = path.join(dir, item);
+      try {
+        const stat = fs.statSync(fp);
+        if (stat.isDirectory()) {
+          count += countFilesRecursive(fp);
+        } else {
+          count++;
+        }
+      } catch {}
+    }
+  } catch {}
+  return count;
+}
