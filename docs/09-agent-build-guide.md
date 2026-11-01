@@ -116,7 +116,25 @@ ES5, single-quoted, with **no backticks and no `${`**. `__CONFIG__` is the only
 substitution point. A stray backtick corrupts the generated script and the
 preview fails with a parse error inside a page you cannot easily inspect.
 
-### 2.8 Analysis modules are pure
+### 2.8 The access gate runs first, in middleware
+
+`middleware.ts` authenticates before it rewrites anything. A new route inherits
+the gate automatically — do **not** add it to `PUBLIC_PATHS` unless it must work
+without a session (there are exactly two: `/login` and `/api/auth/access`).
+
+If you add a route that returns data, assume it is protected and make sure it
+behaves correctly with a `401` when the cookie is missing.
+
+### 2.9 Preview helpers live in `lib/preview/`
+
+The preview route is an orchestrator. MIME overrides, path resolution and the
+containment guard are in `lib/preview/{mime,paths,security}.ts` so they can be
+tested without a server.
+
+The containment check (`isWithinBase`) runs **once, after every resolution
+tier**. Moving it inside a tier lets a later fallback escape the job directory.
+
+### 2.10 Analysis modules are pure
 
 `lib/analysis/*` takes data and returns a result. No network, no request object,
 no filesystem writes. This is what makes them testable against fixtures — the
@@ -167,6 +185,10 @@ Each module's responsibility, and what it must not do.
 | `lib/authflow/runtime.ts` | render the injected client script | contain backticks |
 | `lib/analysis/endpoints.ts` | merge three sources into one catalogue | call the network |
 | `lib/analysis/health.ts` | score a mirror 0-100 | read files |
+| `lib/preview/paths.ts` | resolve a request path to a file on disk | touch the request |
+| `lib/preview/security.ts` | decide whether a resolved path is inside the job dir | resolve paths itself |
+| `lib/security/app-auth.ts` | sign and verify the session cookie | use `node:crypto` (must run on Edge) |
+| `lib/security/crypto.ts` | seal and open stored profiles | be imported by middleware (Edge) |
 | `app/api/**/route.ts` | validate, delegate, respond | contain crawl logic |
 
 ---
@@ -267,6 +289,10 @@ listener, and drive it with fake forms. Assert:
 | mirror renders the wrong page for `/` | a captured ISP 404 saved as `index.html` | the corrupt-entry guard should unlink it |
 | every job 404s after redeploy | a route skipped `ensureJobExists` | add it |
 | login submits twice | auth runtime injected after the legacy script | reverse the injection order |
+| everything 503s | production with no `WEBSTUDIO_ACCESS_TOKEN` | set the token, or `WEBSTUDIO_ALLOW_OPEN=1` |
+| API 401s but pages load | `Secure` cookie over plain http | terminate TLS, or run in development |
+| profiles unreadable after deploy | `WEBSTUDIO_SECRET` changed | keep the secret stable; re-capture |
+| jobs vanish on redeploy | storage dirs not on a mounted volume | set `WEBSTUDIO_DATA_DIR` / `WEBSTUDIO_DOWNLOAD_DIR` |
 | preview script syntax error | a backtick or `${` inside `CLIENT_SCRIPT` | keep it ES5 |
 | pause does nothing | the `wget` strategy ignores job controls | documented limitation, not a bug to chase |
 | `POST /api/mirror/auth` accepts anything | it skips URL validation | known gap, see security doc |

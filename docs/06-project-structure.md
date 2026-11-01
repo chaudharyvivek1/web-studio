@@ -42,11 +42,17 @@ web-studio/
 │   │   └── playwrightHelper.ts  Safe Chromium launch
 │   ├── processor/            classify · hash · rewrite · pipeline
 │   ├── security/             validate-url · dns-guard · redirect-guard ·
-│   │                         rate-limit · content-limit
+│   │                         rate-limit · content-limit · app-auth (session
+│   │                         signing) · crypto (profile encryption)
 │   ├── analysis/             api · assets · health · network · technology
 │   ├── auth/                 session · manual-login · import-session
 │   ├── db/                   client.ts (queries) · schema.ts (DDL)
 │   ├── jobs/                 manager.ts · queue.ts · manifest.ts
+│   ├── preview/              Preview-route modules (see below)
+│   │   ├── mime.ts           Explicit MIME overrides
+│   │   ├── paths.ts          File/directory resolution helpers
+│   │   └── security.ts       Path-containment guard
+│   ├── authflow/             Auth detection (detect.ts) and injected runtime (runtime.ts)
 │   ├── export/               zip.ts
 │   ├── authCrawler.ts        Playwright login + authenticated deep harvest
 │   ├── nativeMirror.ts       Pure-Node mirror for serverless hosts

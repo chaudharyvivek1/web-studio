@@ -1,98 +1,199 @@
 # Security model
 
-WebStudio fetches arbitrary URLs on behalf of a user and serves the results
-back. That is, structurally, an SSRF engine with a web UI. The mitigations
-below are real, but they are also incomplete — read the gaps section before
-deploying this publicly.
+WebStudio fetches arbitrary URLs on behalf of a user, serves the results back,
+and can hold live third-party session cookies. That combination needs to be
+deliberately constrained.
 
-## What is defended
+This document states what is defended, what changed in the hardening pass, and
+what is still open.
 
-### 1. URL validation — `lib/security/validate-url.ts`
+---
 
-Runs before anything else. Rejects non-HTTP(S) schemes, malformed hosts, and
-URLs over 2048 characters, and returns the normalised URL on success.
+## 1. Access control
 
-### 2. Hostname blocklist — in `POST /api/mirror`
+### Single-token gate
 
-```ts
-/^localhost$/i
-/^127\.\d+\.\d+\.\d+$/
-/^10\.\d+\.\d+\.\d+$/
-/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/
-/^192\.168\.\d+\.\d+$/
-/^0\.0\.0\.0$/
-/^\[::1?\]$/
+WebStudio has no user accounts — it is a single-tenant studio. The gate is one
+shared secret:
+
+```
+WEBSTUDIO_ACCESS_TOKEN  →  POST /api/auth/access { token }  →  Set-Cookie: webstudio_access
 ```
 
-### 3. DNS guard — `lib/security/dns-guard.ts`
+The cookie value is `v1.<issuedAtMs>.<hmac>`:
 
-Resolves the hostname and rejects the request if *any* resolved address is
-loopback, private, link-local or otherwise non-routable. This is the defence
-against a public DNS name that points at `127.0.0.1` (DNS rebinding). Failure
-is a `403`, deliberately distinct from the `400` blocklist so operators can
-tell the two apart in logs.
+- HMAC-SHA256 over `v1.<issuedAtMs>` keyed by the token itself, computed with
+  **Web Crypto** so the same module runs in Edge middleware and Node handlers;
+- `HttpOnly` — a script inside a mirrored preview page shares this origin and
+  still cannot read the session;
+- `SameSite=Strict`;
+- `Secure` in production;
+- valid for seven days, verified by age rather than server-side state.
 
-### 4. Redirect guard — `lib/security/redirect-guard.ts`
+`middleware.ts` enforces it for every path except `/login` and
+`/api/auth/access`. API calls get `401` JSON; page navigations get a redirect.
 
-Every redirect hop is re-validated with the same rules, so a permitted host
-cannot bounce the crawler into a private network.
+### Three modes
 
-### 5. Rate limiting — `lib/security/rate-limit.ts`
+| `WEBSTUDIO_ACCESS_TOKEN` | `NODE_ENV` | mode | behaviour |
+|---|---|---|---|
+| set (≥ 8 chars) | any | `protected` | gate enforced |
+| unset | development | `open` | everything allowed |
+| unset | production | `misconfigured` | **503 with an explanation** |
 
-A per-IP token bucket consumed at job creation. The IP is the first
-`x-forwarded-for` hop, falling back to `127.0.0.1` — so **behind a proxy that
-does not set the header, every caller shares one bucket**.
+Production with no token fails closed. Set `WEBSTUDIO_ALLOW_OPEN=1` only if the
+instance genuinely is not reachable by anyone else.
 
-A second, global cap limits concurrent jobs to 50. Stale jobs older than 20 s
-with no live process are swept so the cap cannot leak.
+### What this closes
 
-### 6. Path traversal — `preview` route
+The previous gap was that every endpoint — job creation, preview, export,
+profile management — was world-readable, and a job id was the only secret. Job
+ids are short and time-derived, so they were guessable in bulk. Now the whole
+surface requires a session.
 
-```ts
-if (!path.resolve(filePath).startsWith(path.resolve(baseDir))) {
-  return new Response('Forbidden: Path traversal detected', { status: 403 });
-}
-```
+---
 
-Applied after all six resolution tiers, so no fallback can escape the job
-directory.
+## 2. CSRF
 
-### 7. Content limits — `lib/security/content-limit.ts`
+`middleware.ts` rejects any `POST`/`PUT`/`PATCH`/`DELETE` that a browser reports
+as cross-site:
 
-Caps individual response sizes and total job size so a hostile target cannot
-exhaust disk.
+- `Sec-Fetch-Site: cross-site` → `403`;
+- otherwise, if an `Origin` header is present, its host must equal the request
+  `Host`.
 
-### 8. Preview framing
+Requests with neither header — `curl`, server-to-server — are allowed, which is
+correct: CSRF is a browser-credential attack.
 
-`X-Frame-Options: ALLOWALL` and `Content-Security-Policy: frame-ancestors *`
-are intentional: the content is meant to be embedded. Note this means a
-mirrored page runs with its own scripts inside your origin's frame — see the
-gaps.
+This is the client-transparent half of CSRF defence: no token has to be threaded
+through every `fetch` call, and there is no per-form state to get out of sync.
 
-## Known gaps
+---
 
-These are real. They are documented rather than hidden because anyone
-maintaining this codebase needs to know them.
+## 3. SSRF and URL validation
+
+Every route that accepts a URL runs the same sequence, in this order:
+
+1. `validateURL()` — scheme must be HTTP(S), host well-formed, length capped.
+2. Hostname blocklist — `localhost`, `127/8`, `10/8`, `172.16/12`, `192.168/16`,
+   `0.0.0.0`, `[::1]`.
+3. `dnsGuard()` — resolves the name and rejects any address that is loopback,
+   private or link-local. This is the DNS-rebinding defence.
+4. `redirectGuard()` — every redirect hop is re-validated, so an allowed host
+   cannot bounce the crawler into a private network.
+5. Per-IP token bucket, plus a global cap of 50 concurrent jobs with a 20-second
+   stale sweep so crashed jobs cannot leak slots.
+
+**Fixed:** `POST /api/mirror/auth` previously skipped all of this and accepted any
+`loginUrl`, which made it the easiest SSRF entry point in the application. It now
+runs steps 1–3 and the rate limiter exactly as `POST /api/mirror` does.
+
+**Also new:** `GET /api/mirror/[id]/live/[[...path]]` re-checks the target host
+against the blocklist and the DNS guard on **every** request, follows redirects
+manually, re-validates each `Location`, and caps responses at 25 MB.
+
+---
+
+## 4. Preview and live-proxy content
+
+The preview serves captured HTML with the target's own scripts intact — that is
+the point, and it means those scripts run on this origin.
+
+### Mitigations now in place
+
+- The session cookie is `HttpOnly`, so mirrored scripts cannot read it.
+- Mutating requests are CSRF-checked by origin, so a mirrored script cannot ride
+  the session to create or delete jobs.
+- The preview response sets `X-Frame-Options: ALLOWALL` and
+  `frame-ancestors *` deliberately — the content is *meant* to be framed.
+
+### Still true, and still a real risk
+
+A mirrored page runs with your origin's privileges for anything a script can do
+with credentials attached. The complete fix is to serve previews from a
+**separate origin**, which is a deployment change, not a code change. Until then:
+
+> Treat a mirrored page as untrusted code running in your app's origin. Do not
+> mirror a site you do not trust into an instance that holds anything valuable.
+
+---
+
+## 5. Stored credentials
+
+Authentication profiles hold live cookies and tokens for third-party sites.
+
+**Fixed:** `storage_state` is sealed with **AES-256-GCM** before it is written and
+opened on read.
+
+- Key material: `WEBSTUDIO_SECRET`, falling back to `WEBSTUDIO_ACCESS_TOKEN`.
+- Values carry an `enc:v1:` prefix, so pre-existing plaintext rows keep working
+  and migrate lazily.
+- With no secret configured, values are stored unencrypted and
+  `isEncryptionEnabled()` reports false — the docs say so plainly rather than
+  implying protection that is not there.
+- Changing the secret makes previously sealed profiles unreadable; they return
+  empty rather than throwing, and can simply be re-captured.
+
+**Still open:** the profiles table has no per-user ownership. Anyone who can read
+the database and reach `/api/auth/profiles` sees the metadata for every profile.
+
+---
+
+## 6. Mock authentication endpoints
+
+`/api/auth/session` and `/api/auth/[...nextauth]` return a fabricated admin
+session. They exist so a *mirrored* NextAuth site works offline, because such a
+site calls those paths at its own root.
+
+**Fixed:** both routes now refuse unless the request carries the
+`webstudio_preview_id` cookie — the one the preview route sets. Outside a mirror
+preview they return `403`, so they can no longer be used as a session source for
+anything else.
+
+They remain fixtures, not authentication: nothing is signed or verified.
+
+---
+
+## 7. Rate limiting and resource limits
+
+| control | value |
+|---|---|
+| per-IP token bucket | `lib/security/rate-limit.ts` |
+| concurrent jobs | 50, with a 20-second stale sweep |
+| wget job wall clock | 20 minutes |
+| live proxy response | 25 MB, then `413` |
+| per-resource size | `lib/security/content-limit.ts` |
+| log tail served | 1 MB / 10 000 lines |
+
+`x-forwarded-for` is trusted for the client IP. Behind a proxy that does not set
+it, every caller shares one bucket; if the app is exposed directly, the header
+can be spoofed to dodge the limit.
+
+---
+
+## 8. Remaining gaps
 
 | gap | detail | suggested fix |
 |---|---|---|
-| **No authentication anywhere** | Every endpoint is public. Anyone who can reach the host can mirror anything, list every job, and download every ZIP. | Put the whole app behind an auth proxy, or add a session check in `middleware.ts`. |
-| **`POST /api/mirror/auth` skips validation** | No `validateURL`, no `dnsGuard`, no blocklist. It was written as a demo convenience. | Reuse the `POST /api/mirror` validation sequence. |
-| **Job id is the only secret** | Ids are `Date.now().toString(36)` + 5 random base36 chars — roughly 60 million possibilities per millisecond, and guessable in bulk by an attacker who knows roughly when a job was created. | Use a 128-bit random id, or bind jobs to a session. |
-| **Mock auth routes** | `/api/auth/session` and `/api/auth/[...nextauth]` return a fabricated admin session with a far-future expiry. They are fixtures, not authentication. | Replace with real NextAuth if you need accounts. |
-| **Auth profiles stored in plaintext** | `auth_profiles.storage_state` holds live cookies and tokens. | Encrypt at rest; restrict DB file permissions. |
-| **Preview HTML injection** | The preview route injects a script into every HTML response that seeds cookies, patches `fetch`, and rewrites `history`. It runs in your origin. | Serve previews from a separate origin/subdomain. |
-| **`wget --no-check-certificate`** | TLS verification is disabled for the mirror strategy. | Remove the flag; accept that some sites will fail. |
-| **`x-forwarded-for` trusted blindly** | Rate limiting can be bypassed by spoofing the header if the app is directly exposed. | Trust the header only from a known proxy. |
-| **No CSRF protection** | `POST` routes accept any origin; the preview route even sends `Access-Control-Allow-Origin: *`. | Add an origin check on state-changing routes. |
+| **Preview shares the app origin** | mirrored scripts run with this origin's privileges | serve previews from a separate origin/subdomain |
+| **No per-user ownership** | one shared token, so anyone with it sees every job | add real accounts and bind jobs to them |
+| **`x-forwarded-for` trusted** | rate limit can be bypassed when directly exposed | trust it only from a known proxy |
+| **TLS verification disabled for wget** | `--no-check-certificate` in the mirror strategy | drop the flag and accept some failures |
+| **No audit log** | nothing records who created or downloaded what | append-only job/access log |
+| **Profile ownership** | profiles are global, not per-session | scope by owner once accounts exist |
+| **Live proxy is an SSRF surface** | guarded, but broader than a file server | keep it behind the gate; consider disabling in production |
 
-## Hardening checklist for a public deployment
+---
 
-1. Front the app with an authenticating reverse proxy (or add auth middleware).
-2. Serve `/api/mirror/[id]/preview/*` from a **separate origin** so mirrored
-   scripts cannot read your cookies.
-3. Replace job ids with `crypto.randomUUID()`.
-4. Drop `--no-check-certificate` from the wget arguments.
-5. Reuse the full validation sequence in `/api/mirror/auth`.
-6. Encrypt `auth_profiles.storage_state`.
-7. Set a hard global disk quota; the per-job limit does not bound the sum.
+## 9. Deployment checklist
+
+1. Set `WEBSTUDIO_ACCESS_TOKEN` — a long random value.
+2. Set `WEBSTUDIO_SECRET` — separate from the access token if possible.
+3. Do **not** set `WEBSTUDIO_ALLOW_OPEN`.
+4. Put captured data and the database on a mounted volume
+   (`WEBSTUDIO_DATA_DIR`, `WEBSTUDIO_DOWNLOAD_DIR`) so they survive redeploys.
+5. Terminate TLS in front of the app; the session cookie is `Secure` in
+   production and will not be sent over plain http.
+6. Serve previews from a separate origin if you mirror untrusted sites.
+7. Set a global disk quota — the per-job limit does not bound the sum.
+8. Re-read this document after any change to `middleware.ts`.
