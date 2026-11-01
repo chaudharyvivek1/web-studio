@@ -2,15 +2,38 @@ services:
   - type: web
     name: web-studio
     runtime: node
-    plan: free
-    buildCommand: npm install && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium chromium-headless-shell && npm run build
+    # Playwright drives a full Chromium for every authenticated crawl. The free
+    # plan gives 512 MB, which is not enough for the browser plus the Node heap;
+    # 2 GB is the realistic floor for anything beyond a demo.
+    plan: starter
+    buildCommand: npm install --ignore-scripts && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install --with-deps chromium chromium-headless-shell && npm run build
     startCommand: next start -H 0.0.0.0 -p $PORT
     envVars:
+      # better-sqlite3@13 declares engines.node >= 22 and segfaults on 20.
       - key: NODE_VERSION
-        value: 20
+        value: "22"
       - key: HOSTNAME
         value: 0.0.0.0
       - key: PLAYWRIGHT_BROWSERS_PATH
         value: "0"
+      # Chromium is memory-hungry: give the Node heap room rather than the 256 MB
+      # that would OOM mid-crawl.
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=256"
+        value: "--max-old-space-size=1536"
+      # Captured sites and the SQLite database must survive a redeploy, so both
+      # live on the mounted disk rather than in the container filesystem.
+      - key: WEBSTUDIO_DATA_DIR
+        value: /var/data
+      - key: WEBSTUDIO_DOWNLOAD_DIR
+        value: /var/data/downloads
+      # Gate the whole studio behind a token. Render generates both values on
+      # first deploy; read WEBSTUDIO_ACCESS_TOKEN from the dashboard to sign in.
+      - key: WEBSTUDIO_ACCESS_TOKEN
+        generateValue: true
+      # Key material for encrypting stored authentication profiles at rest.
+      - key: WEBSTUDIO_SECRET
+        generateValue: true
+    disk:
+      name: webstudio-data
+      mountPath: /var/data
+      sizeGB: 10
