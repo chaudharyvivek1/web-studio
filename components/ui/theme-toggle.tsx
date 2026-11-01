@@ -1,0 +1,50 @@
+'use client';
+
+import * as React from 'react';
+import { Sun, Moon } from 'lucide-react';
+
+export function ThemeToggle({ className }: { className?: string }) {
+  const [theme, setTheme] = React.useState<'dark' | 'light'>('dark');
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('webstudio_theme');
+      if (saved === 'light' || (!saved && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+        setTheme('light');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        setTheme('dark');
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+      }
+    } catch {}
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (next === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+    }
+    try {
+      localStorage.setItem('webstudio_theme', next);
+    } catch {}
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className={`h-8 w-8 rounded-full border border-slate-200/90 dark:border-white/10 bg-slate-100/80 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-foreground flex items-center justify-center transition-colors cursor-pointer shadow-xs ${className || ''}`}
+      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label="Toggle theme"
+    >
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
